@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import pymap3d as pm
 
 # === ЗАВАНТАЖЕННЯ ===
-df = pd.read_csv('output_csv/combined_sensors_data.csv')
+df = pd.read_csv('../output_csv/combined_sensors_data.csv')
 
 # === ВИБІР GPS ДАНИХ (найкраще) ===
 df_gps = df[df['MSG_TYPE'] == 'GPS'].copy()
@@ -80,4 +80,4 @@ fig.update_layout(
 
 # fig.show()
 # fig.write_html("flight_plot.html")
-fig.write_html("plot.html", include_plotlyjs='cdn')
+fig.write_html("graphic.html", include_plotlyjs='cdn')
