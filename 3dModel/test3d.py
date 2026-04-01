@@ -73,4 +73,5 @@ fig.update_layout(
 )
 
 # fig.show()
+# Створення файлу з віджетом
 fig.write_html("graphic.html", include_plotlyjs='cdn')
