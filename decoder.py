@@ -1,10 +1,15 @@
 from pymavlink import DFReader
 import pandas as pd
 from collections import defaultdict
+import os  # <-- для роботи з папками
 
-logfile = r'E:\proj\python\PythonProject\00000001.BIN'
+logfile = r'test_task_challenge\test_task_challenge\00000001.BIN'
 
 dfreader = DFReader.DFReader_binary(logfile)
+
+# Папка для CSV
+output_folder = "output_csv"
+os.makedirs(output_folder, exist_ok=True)  # створює папку, якщо нема
 
 # Збираємо всі дані
 data = defaultdict(list)
@@ -14,7 +19,7 @@ while True:
     if m is None:
         break
     msg_type = m.get_type()
-    # Беремо тільки корисні повідомлення (можеш додати інші)
+    # Беремо тільки корисні повідомлення
     if msg_type in ['IMU', 'GPS', 'ATT', 'CTUN', 'SIM', 'VIBE', 'BARO', 'MODE', 'GPA', 'PARM']:
         data[msg_type].append(m.to_dict())
 
@@ -26,8 +31,9 @@ for name, df in dfs.items():
     print(f"✅ {name:6} → {len(df):5} записів | частота ≈ {round(1_000_000 / df['TimeUS'].diff().mean(), 1)} Гц")
     print(df.columns.tolist()[:12], "...\n")  # перші 12 колонок
 
-# Зберігаємо всі в CSV (зручно для аналізу)
+# Зберігаємо всі в CSV у спеціальній папці
 for name, df in dfs.items():
-    df.to_csv(f'{name}_data.csv', index=False)
+    filepath = os.path.join(output_folder, f'{name}_data.csv')
+    df.to_csv(filepath, index=False)
 
-print("🎉 Всі дані збережено в CSV-файли!")
+print(f"🎉 Всі дані збережено в папку '{output_folder}'!")
