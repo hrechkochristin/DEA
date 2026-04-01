@@ -61,12 +61,23 @@ fig = go.Figure(data=[go.Scatter3d(
 
 fig.update_layout(
     title='3D траєкторія польоту',
+    # scene=dict(
+    #     xaxis_title='East (м)',
+    #     yaxis_title='North (м)',
+    #     zaxis_title='Up (м)',
+    #     aspectmode='data'
+    # )
     scene=dict(
         xaxis_title='East (м)',
         yaxis_title='North (м)',
         zaxis_title='Up (м)',
-        aspectmode='data'
+        aspectmode='data',
+        camera=dict(
+            eye=dict(x=4, y=1, z=4)
     )
 )
+)
 
-fig.show()
+# fig.show()
+# fig.write_html("flight_plot.html")
+fig.write_html("plot.html", include_plotlyjs='cdn')
