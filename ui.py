@@ -2,109 +2,139 @@ import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+import pymap3d as pm
+import tempfile
+import os
 
-# 1. Налаштування сторінки (Dark Mode за замовчуванням у Streamlit)
+# --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
 st.set_page_config(page_title="BEST Telemetry Analyzer", layout="wide")
 
-# 2. Бічна панель (Sidebar)
+# --- БЕЗПЕЧНИЙ ІМПОРТ БЕКЕНДУ (Захист від помилок) ---
+try:
+    from backend import process_log_file, calculate_metrics
+    backend_ready = True
+except ImportError:
+    backend_ready = False
+    
+    # Тимчасові заглушки (Mocks), які працюють замість бекенду
+    def process_log_file(filepath):
+        # Генеруємо красиву фейкову траєкторію польоту
+        t = np.linspace(0, 10, 500)
+        df = pd.DataFrame({
+            'MSG_TYPE': ['GPS'] * 500,
+            'TimeUS': t * 1_000_000,
+            'Lat': 49.8397 + np.cumsum(np.random.randn(500) * 0.0001),
+            'Lng': 24.0297 + np.cumsum(np.random.randn(500) * 0.0001),
+            'Alt': 100 + np.abs(np.cumsum(np.random.randn(500) * 2))
+        })
+        return df
+
+    def calculate_metrics(df):
+        # Повертаємо красиві фейкові цифри для дашборду
+        return {
+            'max_h_speed': 45.2,
+            'max_v_speed': 12.0,
+            'max_accel': 18.5,
+            'total_distance': 4200.0,
+            'max_altitude_gain': 120.0,
+            'flight_time_sec': 870.0
+        }
+
+# --- БІЧНА ПАНЕЛЬ ---
 with st.sidebar:
     st.title("🚁 BEST Telemetry")
     st.markdown("---")
     
-    # Завантажувач файлів
+    if not backend_ready:
+        st.warning("⚠️ Увімкнено Демо-режим. Функції бекенду ще не знайдено, використовуються фейкові дані.")
+    
     st.subheader("Дані польоту")
     uploaded_file = st.file_uploader("Завантажте лог-файл (.bin)", type=["bin", "log"])
-    
-    # Налаштування візуалізації
-    st.subheader("Налаштування")
-    color_metric = st.selectbox("Колорувати траєкторію за:", ["Швидкість", "Висота", "Час"])
-    
-    st.markdown("---")
-    analyze_btn = st.button("🚀 Аналізувати політ", use_container_width=True)
 
-# 3. Головна панель (Заголовок)
+# --- ГОЛОВНА ПАНЕЛЬ ---
 st.title("Аналіз просторової траєкторії БПЛА")
 
-# Якщо файл ще не завантажено, показуємо заглушку
-if not uploaded_file and not analyze_btn:
+if not uploaded_file:
     st.info("👈 Будь ласка, завантажте лог-файл Ardupilot у меню ліворуч, щоб розпочати аналіз.")
 else:
-    # 4. Дашборд з метриками (KPI Cards)
-    # Згідно з вимогами, показуємо ключові кінематичні показники
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        st.metric(label="Макс. гориз. швидкість", value="45 км/год")
-    with col2:
-        st.metric(label="Макс. верт. швидкість", value="12 м/с")
-    with col3:
-        st.metric(label="Макс. прискорення", value="18 м/с²")
-    with col4:
-        st.metric(label="Дистанція (Haversine)", value="4.2 км")
-    with col5:
-        st.metric(label="Час польоту", value="14 хв 30 с")
+    with st.spinner("Обробка даних... ⏳"):
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.bin') as tmp:
+            tmp.write(uploaded_file.getvalue())
+            tmp_path = tmp.name
 
-    st.markdown("---")
-
-    # 5. Центральна частина — 3D-візуалізація
-    st.subheader("Просторова траєкторія (система ENU)")
-    
-    # Генеруємо фейкові дані для демонстрації траєкторії (заміниш на реальні дані з pandas DataFrame)
-    t = np.linspace(0, 10, 500)
-    x = np.cumsum(np.random.randn(500))  # Схід (East)
-    y = np.cumsum(np.random.randn(500))  # Північ (North)
-    z = np.abs(np.cumsum(np.random.randn(500))) # Висота (Up)
-    speed = np.gradient(x)**2 + np.gradient(y)**2 + np.gradient(z)**2 # Фейкова швидкість для кольору
-
-    # Створення 3D-графіка Plotly
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter3d(
-        x=x, y=y, z=z,
-        mode='lines',
-        line=dict(
-            color=speed, # Динамічне колорування залежно від швидкості
-            colorscale='Turbo', # Градієнт від синього до червоного
-            width=5,
-            colorbar=dict(title="Швидкість")
-        ),
-        name='Траєкторія'
-    ))
-
-    # Налаштування осей для системи ENU
-    fig.update_layout(
-        scene=dict(
-            xaxis_title='Схід (X, метри)',
-            yaxis_title='Північ (Y, метри)',
-            zaxis_title='Висота (Z, метри)'
-        ),
-        margin=dict(l=0, r=0, b=0, t=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        height=600
-    )
-
-    # Вивід графіка в Streamlit
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
-
-    # 6. Нижня частина — AI-звіт та Теорія
-    col_ai, col_docs = st.columns([2, 1])
-
-    with col_ai:
-        st.subheader("🤖 AI Flight Conclusion")
-        st.success("""
-        **Аналіз успішний.** Під час польоту виявлено різку втрату висоти на 8-й хвилині місії, що супроводжувалася короткочасним стрибком вертикального прискорення. Загальна траєкторія відповідає заданому маршруту. Перевищень критичної швидкості не зафіксовано.
-        """)
-
-    with col_docs:
-        st.subheader("📚 Документація")
-        with st.expander("Математичне обґрунтування"):
-            st.write("""
-            **Система координат ENU**: Локальна система, де осі спрямовані на Схід (X), Північ (Y) та Вгору (Z).
+        try:
+            # 1. ОТРИМАННЯ ДАНИХ
+            df = process_log_file(tmp_path)
             
-            **Розрахунок дистанції**: Використовується формула Haversine для врахування кривизни Землі при обчисленні відстані між точками GPS.
-            
-            **Похибки IMU**: Подвійне інтегрування даних акселерометра призводить до накопичення дрейфу (drift error), тому швидкості потребують фільтрації.
-            """)
+            if df.empty:
+                st.error("Повернуто порожній масив даних.")
+            else:
+                # 2. ОТРИМАННЯ МЕТРИК
+                metrics = calculate_metrics(df)
+                mins, secs = divmod(int(metrics.get('flight_time_sec', 0)), 60)
+
+                # --- ДАШБОРД ---
+                st.subheader("Кінематичні показники місії")
+                col1, col2, col3, col4, col5, col6 = st.columns(6)
+                
+                with col1: st.metric("Макс. гориз. швидкість", f"{metrics.get('max_h_speed', 0):.1f} м/с")
+                with col2: st.metric("Макс. верт. швидкість", f"{metrics.get('max_v_speed', 0):.1f} м/с")
+                with col3: st.metric("Макс. прискорення (IMU)", f"{metrics.get('max_accel', 'N/A')} м/с²")
+                with col4: st.metric("Дистанція (Haversine)", f"{metrics.get('total_distance', 0) / 1000:.2f} км")
+                with col5: st.metric("Макс. набір висоти", f"{metrics.get('max_altitude_gain', 0):.1f} м")
+                with col6: st.metric("Час польоту", f"{mins} хв {secs} с")
+
+                st.markdown("---")
+
+                # --- ПІДГОТОВКА ДАНИХ ДЛЯ 3D ГРАФІКА ---
+                df_gps = df[df['MSG_TYPE'] == 'GPS'].copy()
+                if df_gps.empty:
+                    df_gps = df[df['MSG_TYPE'] == 'SIM'].copy()
+
+                df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna()
+
+                if not df_gps.empty:
+                    lat0, lon0, alt0 = df_gps['Lat'].iloc[0], df_gps['Lng'].iloc[0], df_gps['Alt'].iloc[0]
+                    e, n, u = pm.geodetic2enu(
+                        df_gps['Lat'].values, df_gps['Lng'].values, df_gps['Alt'].values,
+                        lat0, lon0, alt0
+                    )
+                    df_gps['E'], df_gps['N'], df_gps['U'] = e, n, u
+
+                    dt = df_gps['TimeUS'].diff() / 1_000_000
+                    dist = np.sqrt(df_gps['E'].diff()**2 + df_gps['N'].diff()**2)
+                    df_gps['speed'] = (dist / dt).fillna(0)
+
+                    # --- 3D ВІЗУАЛІЗАЦІЯ ---
+                    st.subheader("Просторова траєкторія (система ENU)")
+                    
+                    fig = go.Figure(data=[go.Scatter3d(
+                        x=df_gps['E'], y=df_gps['N'], z=df_gps['U'],
+                        mode='lines+markers',
+                        marker=dict(
+                            size=3, color=df_gps['speed'], colorscale='Plasma',
+                            colorbar=dict(title='Швидкість (м/с)'), opacity=0.8
+                        ),
+                        line=dict(
+                            width=5, color=df_gps['speed'], colorscale='Plasma'
+                        )
+                    )])
+
+                    fig.update_layout(
+                        scene=dict(
+                            xaxis_title='East (Схід, м)', yaxis_title='North (Північ, м)', zaxis_title='Up (Висота, м)',
+                            aspectmode='data', camera=dict(eye=dict(x=4, y=1, z=4))
+                        ),
+                        margin=dict(l=0, r=0, b=0, t=0), height=600
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Не знайдено GPS або SIM даних для побудови траєкторії.")
+
+        finally:
+            try:
+                os.remove(tmp_path)
+            except PermissionError:
+                pass
