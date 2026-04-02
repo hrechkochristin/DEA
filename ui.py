@@ -65,13 +65,17 @@ else:
 
         try:
             # 1. ОТРИМАННЯ ДАНИХ
-            df = process_log_file(tmp_path)
-            
-            if df.empty:
+            csv_path, rows_count = process_log_file(tmp_path)
+
+            if csv_path is None or rows_count == 0:
                 st.error("Повернуто порожній масив даних.")
             else:
-                # 2. ОТРИМАННЯ МЕТРИК
-                metrics = calculate_metrics(df)
+                df = pd.read_csv(csv_path)
+
+                if df.empty:
+                    st.error("Повернуто порожній масив даних.")
+                else:
+                    metrics = calculate_metrics(df)
                 mins, secs = divmod(int(metrics.get('flight_time_sec', 0)), 60)
 
                 # --- ДАШБОРД ---
@@ -93,7 +97,6 @@ else:
                     df_gps = df[df['MSG_TYPE'] == 'SIM'].copy()
 
                 df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna()
-
                 if not df_gps.empty:
                     lat0, lon0, alt0 = df_gps['Lat'].iloc[0], df_gps['Lng'].iloc[0], df_gps['Alt'].iloc[0]
                     e, n, u = pm.geodetic2enu(
