@@ -5,6 +5,7 @@ import pandas as pd
 import pymap3d as pm
 import tempfile
 import os
+from ai_asisstant import get_ai_analysis
 
 # --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
 st.set_page_config(page_title="BEST Telemetry Analyzer", layout="wide")
@@ -50,6 +51,14 @@ with st.sidebar:
     
     st.subheader("Дані польоту")
     uploaded_file = st.file_uploader("Завантажте лог-файл (.bin)", type=["bin", "log"])
+
+    analyze_btn = st.button("✦ Огляд від ШІ", use_container_width=True)
+
+    if analyze_btn:
+        if uploaded_file:
+            st.session_state['run_ai'] = True
+        else:
+            st.error("Спочатку завантажте файл!")
 
 # --- ГОЛОВНА ПАНЕЛЬ ---
 st.title("Аналіз просторової траєкторії БПЛА")
@@ -141,6 +150,18 @@ else:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("Не знайдено GPS або SIM даних для побудови траєкторії.")
+
+                # --- СЕКЦІЯ AI АНАЛІЗУ ---
+                # Перевіряємо, чи була натиснута кнопка в сайдбарі
+                if st.session_state.get('run_ai'):
+                    st.markdown("---")
+                    st.subheader("✦ Висновок від ШІ")
+                    
+                    # Створюємо контейнер для гарного візуального виділення
+                    with st.container():
+                        with st.spinner("ШІ аналізує телеметрію та шукає аномалії..."):
+                            ai_report = get_ai_analysis(metrics)
+                            st.info(ai_report)
 
         finally:
             try:
