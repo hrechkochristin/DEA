@@ -65,7 +65,14 @@ else:
 
         try:
             # 1. ОТРИМАННЯ ДАНИХ
-            csv_path, rows_count = process_log_file(tmp_path)
+            try:
+                csv_path, rows_count = process_log_file(tmp_path)
+            except ValueError as e:
+                st.error(f"Невалідний файл: {e}")
+                st.stop()
+            except Exception as e:
+                st.error(f"Помилка обробки: {e}")
+                st.stop()
 
             if csv_path is None or rows_count == 0:
                 st.error("Повернуто порожній масив даних.")
@@ -95,8 +102,7 @@ else:
                 df_gps = df[df['MSG_TYPE'] == 'GPS'].copy()
                 if df_gps.empty:
                     df_gps = df[df['MSG_TYPE'] == 'SIM'].copy()
-
-                df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna()
+                    df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna()
                 if not df_gps.empty:
                     lat0, lon0, alt0 = df_gps['Lat'].iloc[0], df_gps['Lng'].iloc[0], df_gps['Alt'].iloc[0]
                     e, n, u = pm.geodetic2enu(
