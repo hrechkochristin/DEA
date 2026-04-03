@@ -1,17 +1,57 @@
 from pymavlink import DFReader
 import os
 import uuid
-from pymavlink import DFReader
 import pandas as pd
 
-from app import OUTPUT_FOLDER
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output_csv"
+
+# Які поля очікуємо в кожному типі повідомлень
+required_attributes = {
+    'GPS': ['TimeUS', 'Lat', 'Lng'],
+    'IMU': ['TimeUS'],
+    'BARO': ['TimeUS'],
+    'SIM': ['TimeUS']
+}
+
+def validate_bin_file(filepath):
+    # 1. існування
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"Файл не знайдено: {filepath}")
+
+    # 2. розширення
+    _, ext = os.path.splitext(filepath)
+    if ext.lower() != '.bin':
+        raise ValueError(f"Очікується .bin файл, отримано: {ext}")
+
+    # 3. спроба відкрити файл
+    try:
+        reader = DFReader.DFReader_binary(filepath)
+        msg = reader.recv_msg()
+        if msg is None:
+            raise ValueError("Файл порожній або не містить валідних повідомлень")
+    except Exception as e:
+        raise ValueError(f"Файл не є валідним Ardupilot BIN: {str(e)}")
+
+
+def validate_message_attributes(msg_type: str, msg_dict: dict, required_map: dict):
+    """
+    Перевіряє, чи є в повідомленні всі потрібні атрибути.
+    Повертає список відсутніх полів.
+    """
+    required_fields = required_map.get(msg_type, [])
+    missing_fields = [field for field in required_fields if field not in msg_dict]
+    return missing_fields
 
 
 def process_log_file(filepath):
+    validate_bin_file(filepath)
+
     dfreader = DFReader.DFReader_binary(filepath)
 
     combined_data = []
-    target_messages = {'GPS', 'IMU', 'BARO', "SIM"}
+
+    target_messages = {'GPS', 'IMU', 'BARO', 'SIM'}
 
     while True:
         m = dfreader.recv_msg()
@@ -22,37 +62,41 @@ def process_log_file(filepath):
 
         if msg_type in target_messages:
             msg_dict = m.to_dict()
+
+            # перевірка полів
+            missing = validate_message_attributes(
+                msg_type, msg_dict, required_attributes
+            )
+
+            if missing:
+                continue
+
             msg_dict['MSG_TYPE'] = msg_type
             combined_data.append(msg_dict)
 
+    # ❗️ якщо взагалі нічого валідного
+    if not combined_data:
+        raise ValueError("Не знайдено жодного валідного повідомлення")
+
     df_final = pd.DataFrame(combined_data)
 
-    if not df_final.empty:
-        # ✅ Сортування
-        df_final = df_final.sort_values(by='TimeUS').reset_index(drop=True)
+    # сортування
+    df_final = df_final.sort_values(by='TimeUS').reset_index(drop=True)
 
-        # ✅ Заповнення пропусків
-        df_final = df_final.ffill().bfill()
+    # заповнення
+    df_final = df_final.ffill().bfill()
 
-        # ✅ Якщо раптом немає TimeUS (рідко, але буває)
-        if 'TimeUS' not in df_final.columns:
-            return None, 0
+    # перевірка ключового поля
+    if 'TimeUS' not in df_final.columns:
+        raise ValueError("Відсутній TimeUS у даних")
 
-        # ✅ Виносимо службові колонки вперед
-        cols = ['TimeUS', 'MSG_TYPE'] + [
-            c for c in df_final.columns if c not in ['TimeUS', 'MSG_TYPE']
-        ]
-        df_final = df_final[cols]
+    # CSV
+    output_filename = f"{uuid.uuid4()}.csv"
+    output_path = os.path.join(OUTPUT_FOLDER, output_filename)
 
-        # ✅ Унікальне ім’я CSV
-        output_filename = f"{uuid.uuid4()}.csv"
-        output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+    df_final.to_csv(output_path, index=False)
 
-        df_final.to_csv(output_path, index=False)
-
-        return output_path, len(df_final)
-
-    return None, 0
+    return output_path, len(df_final)
 
 
 def calculate_metrics(df):
@@ -106,7 +150,6 @@ def calculate_metrics(df):
     lat0 = df_gps.loc[0, 'Lat']
     lon0 = df_gps.loc[0, 'Lng']
     alt0 = df_gps.loc[0, 'Alt']
-
     # ENU
     e, n, u = pm.geodetic2enu(
         df_gps['Lat'].to_numpy(),
@@ -153,41 +196,7 @@ def calculate_metrics(df):
     flight_time_sec = float(
         (df_gps['TimeUS'].iloc[-1] - df_gps['TimeUS'].iloc[0]) / 1_000_000.0
     )
-    # ===== ГРАФІК =====
-    fig = go.Figure(data=[go.Scatter3d(
-        x=df_gps['E'],
-        y=df_gps['N'],
-        z=df_gps['U'],
-        mode='lines+markers',
-        marker=dict(
-            size=3,
-            color=df_gps['speed'],
-            colorscale='Plasma',
-            colorbar=dict(title='Швидкість (м/с)'),
-            opacity=0.8
-        ),
-        line=dict(
-            width=5,
-            color=df_gps['speed'],
-            colorscale='Plasma'
-        )
-    )])
-
-    fig.update_layout(
-        title='3D траєкторія польоту',
-        scene=dict(
-            xaxis_title='East (м)',
-            yaxis_title='North (м)',
-            zaxis_title='Up (м)',
-            aspectmode='data',
-            camera=dict(
-                eye=dict(x=4, y=1, z=4)
-            )
-        )
-    )
-
-    fig.write_html("graphic.html", include_plotlyjs='cdn')
-
+    
     # ===== RETURN =====
     return {
         'max_h_speed': round(max_h_speed, 2),
