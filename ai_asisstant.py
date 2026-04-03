@@ -1,8 +1,11 @@
+import os
+from dotenv import load_dotenv
 import google.generativeai as genai
-from config import API_KEY
+
+load_dotenv()
 
 def get_ai_analysis(metrics):
-    genai.configure(api_key=API_KEY)
+    genai.configure(api_key=os.getenv("API_KEY"))
     model = genai.GenerativeModel('gemini-2.5-flash')
 
     prompt = f"""
