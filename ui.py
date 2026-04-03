@@ -17,8 +17,9 @@ try:
 except ImportError:
     backend_ready = False
     
+    # Тимчасові заглушки (Mocks), які працюють замість бекенду
     def process_log_file(filepath):
-        # 1. Створюємо фейкові дані
+        # Генеруємо красиву фейкову траєкторію польоту
         t = np.linspace(0, 10, 500)
         df = pd.DataFrame({
             'MSG_TYPE': ['GPS'] * 500,
@@ -27,15 +28,10 @@ except ImportError:
             'Lng': 24.0297 + np.cumsum(np.random.randn(500) * 0.0001),
             'Alt': 100 + np.abs(np.cumsum(np.random.randn(500) * 2))
         })
-        
-        # 2. Імітуємо збереження в CSV (як це робитиме реальний бекенд)
-        temp_csv = tempfile.NamedTemporaryFile(delete=False, suffix='.csv')
-        df.to_csv(temp_csv.name, index=False)
-        
-        # 3. ПОВЕРТАЄМО 2 ЗНАЧЕННЯ, як очікує рядок 74
-        return temp_csv.name, len(df)
+        return df
 
     def calculate_metrics(df):
+        # Повертаємо красиві фейкові цифри для дашборду
         return {
             'max_h_speed': 45.2,
             'max_v_speed': 12.0,
