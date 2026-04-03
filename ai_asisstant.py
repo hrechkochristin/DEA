@@ -1,13 +1,10 @@
 import google.generativeai as genai
 from config import API_KEY
 
-# Налаштування моделі
 def get_ai_analysis(metrics):
-    # Встав свій ключ сюди (або винеси в змінні оточення)
     genai.configure(api_key=API_KEY)
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    # Формуємо промпт на основі вимог завдання 
     prompt = f"""
     Ти — експертний асистент з аналізу телеметрії БПЛА. 
     Проаналізуй наступні метрики польоту Ardupilot та надай короткий технічний висновок (до 5 речень).
