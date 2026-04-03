@@ -5,7 +5,8 @@ import pandas as pd
 import pymap3d as pm
 import tempfile
 import os
-from ai_asisstant import get_ai_analysis
+# from ai_asisstant import get_ai_analysis
+from Model.test3d import draw_trajectory
 
 # --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
 st.set_page_config(page_title="BEST Telemetry Analyzer", layout="wide")
@@ -107,61 +108,9 @@ else:
 
                 st.markdown("---")
 
-                # --- ПІДГОТОВКА ДАНИХ ДЛЯ 3D ГРАФІКА ---
-                df_gps = df[df['MSG_TYPE'] == 'GPS'].copy()
-                if df_gps.empty:
-                    df_gps = df[df['MSG_TYPE'] == 'SIM'].copy()
-                    df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna()
-                if not df_gps.empty:
-                    lat0, lon0, alt0 = df_gps['Lat'].iloc[0], df_gps['Lng'].iloc[0], df_gps['Alt'].iloc[0]
-                    e, n, u = pm.geodetic2enu(
-                        df_gps['Lat'].values, df_gps['Lng'].values, df_gps['Alt'].values,
-                        lat0, lon0, alt0
-                    )
-                    df_gps['E'], df_gps['N'], df_gps['U'] = e, n, u
-
-                    dt = df_gps['TimeUS'].diff() / 1_000_000
-                    dist = np.sqrt(df_gps['E'].diff()**2 + df_gps['N'].diff()**2)
-                    df_gps['speed'] = (dist / dt).fillna(0)
-
-                    # --- 3D ВІЗУАЛІЗАЦІЯ ---
-                    st.subheader("Просторова траєкторія (система ENU)")
-                    
-                    fig = go.Figure(data=[go.Scatter3d(
-                        x=df_gps['E'], y=df_gps['N'], z=df_gps['U'],
-                        mode='lines+markers',
-                        marker=dict(
-                            size=3, color=df_gps['speed'], colorscale='Plasma',
-                            colorbar=dict(title='Швидкість (м/с)'), opacity=0.8
-                        ),
-                        line=dict(
-                            width=5, color=df_gps['speed'], colorscale='Plasma'
-                        )
-                    )])
-
-                    fig.update_layout(
-                        scene=dict(
-                            xaxis_title='East (Схід, м)', yaxis_title='North (Північ, м)', zaxis_title='Up (Висота, м)',
-                            aspectmode='data', camera=dict(eye=dict(x=4, y=1, z=4))
-                        ),
-                        margin=dict(l=0, r=0, b=0, t=0), height=600
-                    )
-
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Не знайдено GPS або SIM даних для побудови траєкторії.")
-
-                # --- СЕКЦІЯ AI АНАЛІЗУ ---
-                # Перевіряємо, чи була натиснута кнопка в сайдбарі
-                if st.session_state.get('run_ai'):
-                    st.markdown("---")
-                    st.subheader("✦ Висновок від ШІ")
-                    
-                    # Створюємо контейнер для гарного візуального виділення
-                    with st.container():
-                        with st.spinner("ШІ аналізує телеметрію та шукає аномалії..."):
-                            ai_report = get_ai_analysis(metrics)
-                            st.info(ai_report)
+                # Вставка ПРАВИЛЬНОГО 3Д графіка
+                fig = draw_trajectory(df)
+                st.plotly_chart(fig, use_container_width=True)
 
         finally:
             try:
