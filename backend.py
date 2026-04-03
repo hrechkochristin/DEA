@@ -3,7 +3,8 @@ import os
 import uuid
 import pandas as pd
 
-from app import OUTPUT_FOLDER
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output_csv"
 
 # Які поля очікуємо в кожному типі повідомлень
 required_attributes = {
@@ -195,41 +196,7 @@ def calculate_metrics(df):
     flight_time_sec = float(
         (df_gps['TimeUS'].iloc[-1] - df_gps['TimeUS'].iloc[0]) / 1_000_000.0
     )
-    # ===== ГРАФІК =====
-    fig = go.Figure(data=[go.Scatter3d(
-        x=df_gps['E'],
-        y=df_gps['N'],
-        z=df_gps['U'],
-        mode='lines+markers',
-        marker=dict(
-            size=3,
-            color=df_gps['speed'],
-            colorscale='Plasma',
-            colorbar=dict(title='Швидкість (м/с)'),
-            opacity=0.8
-        ),
-        line=dict(
-            width=5,
-            color=df_gps['speed'],
-            colorscale='Plasma'
-        )
-    )])
-
-    fig.update_layout(
-        title='3D траєкторія польоту',
-        scene=dict(
-            xaxis_title='East (м)',
-            yaxis_title='North (м)',
-            zaxis_title='Up (м)',
-            aspectmode='data',
-            camera=dict(
-                eye=dict(x=4, y=1, z=4)
-            )
-        )
-    )
-
-    fig.write_html("graphic.html", include_plotlyjs='cdn')
-
+    
     # ===== RETURN =====
     return {
         'max_h_speed': round(max_h_speed, 2),
