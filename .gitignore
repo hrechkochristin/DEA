@@ -209,6 +209,3 @@ __marimo__/
 # Папка для CSV-файлів з логів
 output_csv/
 .idea/
-
-# API-Ключ 
-config.py
