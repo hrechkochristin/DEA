@@ -5,6 +5,7 @@ import pandas as pd
 import pymap3d as pm
 import tempfile
 import os
+from ai_asisstant import get_ai_analysis
 
 # --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
 st.set_page_config(page_title="BEST Telemetry Analyzer", layout="wide")
@@ -16,9 +17,8 @@ try:
 except ImportError:
     backend_ready = False
     
-    # Тимчасові заглушки (Mocks), які працюють замість бекенду
     def process_log_file(filepath):
-        # Генеруємо красиву фейкову траєкторію польоту
+        # 1. Створюємо фейкові дані
         t = np.linspace(0, 10, 500)
         df = pd.DataFrame({
             'MSG_TYPE': ['GPS'] * 500,
@@ -27,10 +27,15 @@ except ImportError:
             'Lng': 24.0297 + np.cumsum(np.random.randn(500) * 0.0001),
             'Alt': 100 + np.abs(np.cumsum(np.random.randn(500) * 2))
         })
-        return df
+        
+        # 2. Імітуємо збереження в CSV (як це робитиме реальний бекенд)
+        temp_csv = tempfile.NamedTemporaryFile(delete=False, suffix='.csv')
+        df.to_csv(temp_csv.name, index=False)
+        
+        # 3. ПОВЕРТАЄМО 2 ЗНАЧЕННЯ, як очікує рядок 74
+        return temp_csv.name, len(df)
 
     def calculate_metrics(df):
-        # Повертаємо красиві фейкові цифри для дашборду
         return {
             'max_h_speed': 45.2,
             'max_v_speed': 12.0,
@@ -50,6 +55,14 @@ with st.sidebar:
     
     st.subheader("Дані польоту")
     uploaded_file = st.file_uploader("Завантажте лог-файл (.bin)", type=["bin", "log"])
+
+    analyze_btn = st.button("✦ Огляд від ШІ", use_container_width=True)
+
+    if analyze_btn:
+        if uploaded_file:
+            st.session_state['run_ai'] = True
+        else:
+            st.error("Спочатку завантажте файл!")
 
 # --- ГОЛОВНА ПАНЕЛЬ ---
 st.title("Аналіз просторової траєкторії БПЛА")
@@ -141,6 +154,29 @@ else:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("Не знайдено GPS або SIM даних для побудови траєкторії.")
+
+                # --- СЕКЦІЯ AI АНАЛІЗУ ---
+                # Перевіряємо, чи була натиснута кнопка в сайдбарі
+                if st.session_state.get('run_ai'):
+                    st.markdown("---")
+                    st.subheader("✦ Висновок від ШІ")
+                    
+                    # Створюємо контейнер для гарного візуального виділення
+                    with st.container():
+                        with st.spinner("ШІ аналізує телеметрію та шукає аномалії..."):
+                            # Тут ми готуємо текст для асистента на основі реальних метрик
+                            # (Це закриває вимогу про інтеграцію LLM для аналізу )
+                            
+                            # Поки бекенд ще в розробці, зробимо змістовну заглушку:
+                            #ai_report = f"""
+                            #**Аналіз місії:**
+                            #* **Динаміка:** Максимальна швидкість ({metrics.get('max_h_speed')} м/с) стабільна. 
+                            #* **Аномалії:** Різких втрат висоти або критичних перевантажень не зафіксовано.
+                            #* **Рекомендація:** Політ пройшов успішно. Всі системи працювали в штатному режимі.
+                            #"""
+                            
+                            ai_report = get_ai_analysis(metrics)
+                            st.info(ai_report)
 
         finally:
             try:
