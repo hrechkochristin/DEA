@@ -9,7 +9,7 @@ from ai_asisstant import get_ai_analysis
 from Model.test3d import draw_trajectory
 
 # --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
-st.set_page_config(page_title="BEST Telemetry Analyzer", layout="wide")
+st.set_page_config(page_title="DEA Telemetry Analyzer", layout="wide")
 
 # --- БЕЗПЕЧНИЙ ІМПОРТ БЕКЕНДУ (Захист від помилок) ---
 try:
@@ -44,7 +44,7 @@ except ImportError:
 
 # --- БІЧНА ПАНЕЛЬ ---
 with st.sidebar:
-    st.title("🚁 BEST Telemetry")
+    st.title("🚁 DEA Telemetry")
     st.markdown("---")
     
     if not backend_ready:
