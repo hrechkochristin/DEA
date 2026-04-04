@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+plotly
+pymap3d
+pymavlink
+google-generativeai
+python-dotenv
