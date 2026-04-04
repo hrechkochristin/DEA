@@ -5,7 +5,7 @@ import pandas as pd
 import pymap3d as pm
 import tempfile
 import os
-# from ai_asisstant import get_ai_analysis
+from ai_asisstant import get_ai_analysis
 from Model.test3d import draw_trajectory
 
 # --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
@@ -109,8 +109,51 @@ else:
                 st.markdown("---")
 
                 # Вставка ПРАВИЛЬНОГО 3Д графіка
-                fig = draw_trajectory(df)
-                st.plotly_chart(fig, use_container_width=True)
+                # --- ТАЙМЛАЙН ТА ПОВЗУНОК ---
+                st.subheader("Просторова траєкторія (система ENU)")
+                
+                # Знаходимо мінімальний і максимальний час у мікросекундах
+                min_time = df['TimeUS'].min()
+                max_time = df['TimeUS'].max()
+                
+                # Розраховуємо загальну тривалість у секундах
+                duration_sec = float((max_time - min_time) / 1_000_000.0)
+
+                # Створюємо повзунок часу
+                selected_sec = st.slider(
+                    "⏱️ Хронологія польоту (секунди)",
+                    min_value=0.0,
+                    max_value=duration_sec,
+                    value=duration_sec, # За замовчуванням повзунок в самому кінці
+                    step=0.5 # Крок в півсекунди для плавності
+                )
+
+                # Обчислюємо відповідний TimeUS для фільтрації
+                selected_time_us = min_time + (selected_sec * 1_000_000.0)
+
+                # ФІЛЬТРАЦІЯ: Залишаємо тільки ті записи, які відбулися ДО вибраного часу
+                df_filtered = df[df['TimeUS'] <= selected_time_us].copy()
+
+                # Перевіряємо, чи є достатньо точок GPS для малювання лінії
+                valid_points = len(df_filtered[df_filtered['MSG_TYPE'].isin(['GPS', 'SIM'])])
+                
+                if valid_points < 2:
+                    st.warning("Повзунок на самому початку: замало даних для відмальовування траєкторії.")
+                else:
+                    # Передаємо відфільтровані дані у вашу функцію з бекенду
+                    fig = draw_trajectory(df_filtered)
+                    st.plotly_chart(fig, use_container_width=True)
+
+                if st.session_state.get('run_ai'):
+                    st.markdown("---")
+                    st.subheader("🤖 Висновок від ШІ (AI Flight Conclusion)")
+                    
+                    with st.spinner("Генеруємо звіт за допомогою Gemini... 🧠"):
+                        # Викликаємо вашу функцію з ai_asisstant.py
+                        ai_report = get_ai_analysis(metrics)
+                        
+                        # Виводимо отриманий текст на екран у красивій рамці
+                        st.info(ai_report)
 
         finally:
             try:
