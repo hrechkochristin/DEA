@@ -6,6 +6,9 @@ import pandas as pd
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output_csv"
 
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
 # Які поля очікуємо в кожному типі повідомлень
 required_attributes = {
     'GPS': ['TimeUS', 'Lat', 'Lng'],
