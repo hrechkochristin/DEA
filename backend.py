@@ -15,16 +15,16 @@ required_attributes = {
 }
 
 def validate_bin_file(filepath):
-    # 1. існування
+    # перевірка існування
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"Файл не знайдено: {filepath}")
 
-    # 2. розширення
+    # перевірка розширення файлу
     _, ext = os.path.splitext(filepath)
     if ext.lower() != '.bin':
         raise ValueError(f"Очікується .bin файл, отримано: {ext}")
 
-    # 3. спроба відкрити файл
+    # спроба відкрити файл
     try:
         reader = DFReader.DFReader_binary(filepath)
         msg = reader.recv_msg()
@@ -35,22 +35,20 @@ def validate_bin_file(filepath):
 
 
 def validate_message_attributes(msg_type: str, msg_dict: dict, required_map: dict):
-    """
-    Перевіряє, чи є в повідомленні всі потрібні атрибути.
-    Повертає список відсутніх полів.
-    """
+    # Перевіряє, чи є в повідомленні всі потрібні атрибути.
+    # Повертає список відсутніх полів.
     required_fields = required_map.get(msg_type, [])
     missing_fields = [field for field in required_fields if field not in msg_dict]
     return missing_fields
 
-
+# обробка отриманого файлу
 def process_log_file(filepath):
     validate_bin_file(filepath)
 
     dfreader = DFReader.DFReader_binary(filepath)
 
     combined_data = []
-
+    # збираємо тільки потрібну інформацію
     target_messages = {'GPS', 'IMU', 'BARO', 'SIM'}
 
     while True:
@@ -74,23 +72,23 @@ def process_log_file(filepath):
             msg_dict['MSG_TYPE'] = msg_type
             combined_data.append(msg_dict)
 
-    # ❗️ якщо взагалі нічого валідного
+    # якщо взагалі нічого валідного
     if not combined_data:
         raise ValueError("Не знайдено жодного валідного повідомлення")
 
     df_final = pd.DataFrame(combined_data)
 
-    # сортування
-    df_final = df_final.sort_values(by='TimeUS').reset_index(drop=True)
-
-    # заповнення
-    df_final = df_final.ffill().bfill()
-
-    # перевірка ключового поля
+    # перевірка присутності ключового поля
     if 'TimeUS' not in df_final.columns:
         raise ValueError("Відсутній TimeUS у даних")
 
-    # CSV
+    # сортування по часовому штампу
+    df_final = df_final.sort_values(by='TimeUS').reset_index(drop=True)
+
+    # збір даних в кучу
+    df_final = df_final.ffill().bfill()
+
+    # створення файлу CSV для збереження отриманих даних
     output_filename = f"{uuid.uuid4()}.csv"
     output_path = os.path.join(OUTPUT_FOLDER, output_filename)
 
@@ -98,16 +96,18 @@ def process_log_file(filepath):
 
     return output_path, len(df_final)
 
-
+# функція з математ. обрахунками
 def calculate_metrics(df):
     import pandas as pd
     import numpy as np
     import plotly.graph_objects as go
     import pymap3d as pm
 
+    # зчитування файлу
     if isinstance(df, str):
         df = pd.read_csv(df)
 
+    # якщо пусто - по нулям
     if df is None or df.empty:
         return {
             'max_h_speed': 0,
@@ -118,11 +118,12 @@ def calculate_metrics(df):
             'flight_time_sec': 0
         }
 
-    # GPS
+    # витаскуємо інформацію з GPS
     df_gps = df[df['MSG_TYPE'] == 'GPS'].copy()
+    # якщо немає - берем з SIM
     if df_gps.empty:
         df_gps = df[df['MSG_TYPE'] == 'SIM'].copy()
-
+    # якщо взагалі нічого немає - по нулям
     if df_gps.empty:
         return {
             'max_h_speed': 0,
@@ -136,6 +137,7 @@ def calculate_metrics(df):
     df_gps = df_gps[['TimeUS', 'Lat', 'Lng', 'Alt']].dropna().copy()
     df_gps = df_gps.sort_values('TimeUS').reset_index(drop=True)
 
+    # якщо даних недостатньо для обрахунку - по нулям
     if len(df_gps) < 2:
         return {
             'max_h_speed': 0,
@@ -183,7 +185,7 @@ def calculate_metrics(df):
     df_gps['accel'] = df_gps['speed'].diff() / dt
     df_gps['accel'] = df_gps['accel'].fillna(0)
 
-    # ===== МЕТРИКИ =====
+    #  МЕТРИКИ 
     max_h_speed = float(df_gps['h_speed'].max())
     max_v_speed = float(df_gps['v_speed'].abs().max())
     max_accel = float(df_gps['accel'].abs().max())
@@ -197,7 +199,7 @@ def calculate_metrics(df):
         (df_gps['TimeUS'].iloc[-1] - df_gps['TimeUS'].iloc[0]) / 1_000_000.0
     )
     
-    # ===== RETURN =====
+    #  Результат
     return {
         'max_h_speed': round(max_h_speed, 2),
         'max_v_speed': round(max_v_speed, 2),

@@ -7,51 +7,21 @@ import tempfile
 import os
 from ai_asisstant import get_ai_analysis
 from Model.test3d import draw_trajectory
+from backend import process_log_file, calculate_metrics
 
-# --- НАЛАШТУВАННЯ ІНТЕРФЕЙСУ ---
+#  НАЛАШТУВАННЯ ІНТЕРФЕЙСУ
 st.set_page_config(page_title="DEA Telemetry Analyzer", layout="wide")
 
 # Очищення кешу ШІ при завантаженні нового файлу (щоб звіт відповідав новому польоту)
 if 'last_uploaded_file' not in st.session_state:
     st.session_state['last_uploaded_file'] = None
 
-# --- БЕЗПЕЧНИЙ ІМПОРТ БЕКЕНДУ (Захист від помилок) ---
-try:
-    from backend import process_log_file, calculate_metrics
-    backend_ready = True
-except ImportError:
-    backend_ready = False
-    
-    # Тимчасові заглушки (Mocks), які працюють замість бекенду
-    def process_log_file(filepath):
-        t = np.linspace(0, 10, 500)
-        df = pd.DataFrame({
-            'MSG_TYPE': ['GPS'] * 500,
-            'TimeUS': t * 1_000_000,
-            'Lat': 49.8397 + np.cumsum(np.random.randn(500) * 0.0001),
-            'Lng': 24.0297 + np.cumsum(np.random.randn(500) * 0.0001),
-            'Alt': 100 + np.abs(np.cumsum(np.random.randn(500) * 2))
-        })
-        return df
-
-    def calculate_metrics(df):
-        return {
-            'max_h_speed': 45.2,
-            'max_v_speed': 12.0,
-            'max_accel': 18.5,
-            'total_distance': 4200.0,
-            'max_altitude_gain': 120.0,
-            'flight_time_sec': 870.0
-        }
-
-# --- БІЧНА ПАНЕЛЬ ---
+#  БІЧНА ПАНЕЛЬ 
 with st.sidebar:
-    st.title("🚁 DEA Telemetry")
-    st.markdown("---")
-    
-    if not backend_ready:
-        st.warning("⚠️ Увімкнено Демо-режим. Функції бекенду ще не знайдено, використовуються фейкові дані.")
-    
+    st.title("DEA Telemetry")
+    st.markdown("")
+
+    # Віджет для завантаження файлу
     st.subheader("Дані польоту")
     uploaded_file = st.file_uploader("Завантажте лог-файл (.bin)", type=["bin", "log"])
 
@@ -63,27 +33,29 @@ with st.sidebar:
 
     analyze_btn = st.button("✦ Огляд від ШІ", use_container_width=True)
 
+    # перевірка чи завантажено файл
     if analyze_btn:
         if uploaded_file:
-            # Ставимо прапорець, що потрібно згенерувати звіт саме зараз
+            # помітка, що потрібно згенерувати звіт саме зараз
             st.session_state['generate_ai_now'] = True
         else:
             st.error("Спочатку завантажте файл!")
 
-# --- ГОЛОВНА ПАНЕЛЬ ---
+#  ГОЛОВНА ПАНЕЛЬ 
 st.title("Аналіз просторової траєкторії БПЛА")
 
+# Нема файлу з логами - нема аналізу перевірка
 if not uploaded_file:
-    st.info("👈 Будь ласка, завантажте лог-файл Ardupilot у меню ліворуч, щоб розпочати аналіз.")
+    st.info("Будь ласка, завантажте лог-файл Ardupilot у меню ліворуч, щоб розпочати аналіз.")
 else:
-    with st.spinner("Обробка даних... ⏳"):
+    with st.spinner("Обробка даних..."):
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.bin') as tmp:
             tmp.write(uploaded_file.getvalue())
             tmp_path = tmp.name
 
         try:
-            # 1. ОТРИМАННЯ ДАНИХ
+            # перевірка на валідність файлу
             try:
                 csv_path, rows_count = process_log_file(tmp_path)
             except ValueError as e:
@@ -104,7 +76,7 @@ else:
                     metrics = calculate_metrics(df)
                 mins, secs = divmod(int(metrics.get('flight_time_sec', 0)), 60)
 
-                # --- ДАШБОРД ---
+                #  ДАШБОРД 
                 st.subheader("Кінематичні показники місії")
                 col1, col2, col3, col4, col5, col6 = st.columns(6)
                 
@@ -115,23 +87,23 @@ else:
                 with col5: st.metric("Макс. набір висоти", f"{metrics.get('max_altitude_gain', 0):.1f} м")
                 with col6: st.metric("Час польоту", f"{mins} хв {secs} с")
 
-                st.markdown("---")
+                st.markdown("")
 
-                # --- ТАЙМЛАЙН ТА ПОВЗУНОК ---
+                #  ТАЙМЛАЙН ТА ПОВЗУНОК 
                 st.subheader("Просторова траєкторія (система ENU)")
-                
+                # встановлення обмежень, створення повзунка
                 min_time = df['TimeUS'].min()
                 max_time = df['TimeUS'].max()
                 duration_sec = float((max_time - min_time) / 1_000_000.0)
 
                 selected_sec = st.slider(
-                    "⏱️ Хронологія польоту (секунди)",
+                    "⏱ Хронологія польоту (секунди)",
                     min_value=0.0,
                     max_value=duration_sec,
                     value=duration_sec, 
                     step=0.5 
                 )
-
+                # обрізання графіку до обраного періоду часу
                 selected_time_us = min_time + (selected_sec * 1_000_000.0)
                 df_filtered = df[df['TimeUS'] <= selected_time_us].copy()
 
@@ -145,16 +117,16 @@ else:
 
                 # Якщо кнопку щойно натиснули
                 if st.session_state.get('generate_ai_now'):
-                    with st.spinner("Генеруємо звіт за допомогою Gemini... 🧠"):
-                        # Зберігаємо результат у пам'ять
+                    with st.spinner("Генеруємо звіт за допомогою Gemini..."):
+                        # зберігає результат у пам'ять
                         st.session_state['ai_report_content'] = get_ai_analysis(metrics)
-                    # Скидаємо прапорець, щоб більше не генерувати
+                    # прибирає прапорець, щоб більше не генерувати
                     st.session_state['generate_ai_now'] = False
 
-                # Якщо звіт вже є у пам'яті (від попереднього натискання) — просто виводимо його
+                # Якщо звіт вже є у пам'яті (від попереднього натискання) - просто виводимо його
                 if st.session_state.get('ai_report_content'):
-                    st.markdown("---")
-                    st.subheader("🤖 Висновок від ШІ (AI Flight Conclusion)")
+                    st.markdown("")
+                    st.subheader("Висновок від ШІ (AI Flight Conclusion)")
                     st.info(st.session_state['ai_report_content'])
 
         finally:
